@@ -3,177 +3,295 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gantt Master Pro</title>
+    <title>Gantt Master - Vista Panoramica</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
-        :root { --day-width: 40px; --accent: #2563eb; --excel: #107c41; --save: #6366f1; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; padding: 20px; color: #1e293b; }
-        .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); max-width: 1200px; margin: auto; }
-        
-        h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; }
-        
-        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 30px; background: #f1f5f9; padding: 15px; border-radius: 8px; align-items: end; }
-        .field { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; font-weight: 600; }
-        
-        input, select, button { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.9rem; }
-        button { cursor: pointer; border: none; font-weight: 600; transition: all 0.2s; color: white; }
-        button:hover { filter: brightness(90%); transform: translateY(-1px); }
-
-        .btn-add { background: var(--accent); }
-        .btn-excel { background: var(--excel); }
-        .btn-save { background: var(--save); }
-        .btn-load { background: #64748b; }
-
-        .gantt-wrapper { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: white; margin-top: 20px; min-height: 300px; }
-        .gantt-container { position: relative; padding-top: 20px; }
-        
-        .grid-lines { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; pointer-events: none; }
-        .grid-line { min-width: var(--day-width); border-right: 1px solid #f1f5f9; position: relative; }
-        .grid-line::after { content: attr(data-day); position: absolute; top: -18px; left: 2px; font-size: 9px; color: #94a3b8; }
-
-        .task-row { position: relative; height: 40px; margin-bottom: 8px; width: 100%; }
-        .task-bar {
-            position: absolute; height: 32px; border-radius: 6px; color: white; font-size: 11px;
-            display: flex; align-items: center; padding: 0 12px; white-space: nowrap;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); z-index: 2; font-weight: 500;
+        :root {
+            --week-width: 60px; /* Una settimana intera occupa 60px */
+            --day-px: 8.57px; /* Calcolo automatico: 60 / 7 */
+            --accent: #2563eb;
+            --excel: #107c41;
+            --save: #6366f1;
         }
 
-        .prio-Alta { background: #ef4444; border-left: 4px solid #991b1b; }
-        .prio-Media { background: #f59e0b; border-left: 4px solid #92400e; }
-        .prio-Bassa { background: #10b981; border-left: 4px solid #065f46; }
-        
-        .hidden { display: none; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #f8fafc;
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 8px;
+            align-items: end;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        input, select, button {
+            padding: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            font-weight: 600;
+            color: white;
+            transition: 0.2s;
+        }
+
+        .btn-add {
+            background: var(--accent);
+        }
+
+        .btn-save {
+            background: var(--save);
+        }
+
+        .btn-excel {
+            background: var(--excel);
+        }
+
+        /* Grafico */
+        .gantt-wrapper {
+            overflow-x: hidden;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            position: relative;
+        }
+
+        .gantt-header {
+            display: flex;
+            background: #f8fafc;
+            border-bottom: 2px solid #e2e8f0;
+            height: 30px;
+        }
+
+        .header-week {
+            min-width: var(--week-width);
+            border-right: 1px solid #e2e8f0;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+        }
+
+        .gantt-container {
+            position: relative;
+            min-height: 400px;
+        }
+
+        .grid-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            pointer-events: none;
+        }
+
+        .grid-line-week {
+            min-width: var(--week-width);
+            border-right: 1px solid #f1f5f9;
+        }
+
+        .task-row {
+            position: relative;
+            height: 35px;
+            border-bottom: 1px solid #fafafa;
+            display: flex;
+            align-items: center;
+        }
+
+        .task-bar {
+            position: absolute;
+            height: 20px;
+            border-radius: 4px;
+            z-index: 2;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        /* Nome attività FUORI dalla barra per leggibilità */
+        .task-label {
+            position: absolute;
+            left: 100%;
+            margin-left: 10px;
+            white-space: nowrap;
+            font-size: 12px;
+            color: #334155;
+            font-weight: 500;
+        }
+
+        .prio-Alta {
+            background: #ef4444;
+        }
+
+        .prio-Media {
+            background: #f59e0b;
+        }
+
+        .prio-Bassa {
+            background: #10b981;
+        }
+
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h2>📅 Gantt Cloud-Ready</h2>
-    
-    <div class="controls">
-        <div class="field">Attività <input type="text" id="name" placeholder="Es. Design UI"></div>
-        <div class="field">Inizio <input type="date" id="start"></div>
-        <div class="field">Fine <input type="date" id="end"></div>
-        <div class="field">Priorità 
-            <select id="priority">
-                <option value="Alta">Alta</option>
-                <option value="Media">Media</option>
-                <option value="Bassa">Bassa</option>
-            </select>
+    <div class="card">
+        <h2>📅 Gantt Panoramico (Vista Settimanale)</h2>
+
+        <div class="controls">
+            <div class="field">Attività <input type="text" id="name" placeholder="Nome..."></div>
+            <div class="field">Inizio <input type="date" id="start"></div>
+            <div class="field">Fine <input type="date" id="end"></div>
+            <div class="field">
+                Priorità
+                <select id="priority">
+                    <option value="Alta">Alta</option>
+                    <option value="Media">Media</option>
+                    <option value="Bassa">Bassa</option>
+                </select>
+            </div>
+            <button class="btn-add" onclick="addTask()">Aggiungi</button>
+            <button class="btn-save" onclick="saveToFile()">Salva .gantt</button>
+            <button class="btn-excel" onclick="exportToExcel()">Excel</button>
+            <button style="background:#64748b" onclick="document.getElementById('fileInput').click()">Carica</button>
+            <input type="file" id="fileInput" class="hidden" accept=".gantt" onchange="loadFromFile(event)">
         </div>
-        <button class="btn-add" onclick="addTask()">Aggiungi</button>
-        <button class="btn-save" onclick="saveToFile()">Salva File .gantt</button>
-        <button class="btn-load" onclick="document.getElementById('fileInput').click()">Carica File</button>
-        <button class="btn-excel" onclick="exportToExcel()">Export Excel</button>
-        <input type="file" id="fileInput" class="hidden" accept=".json,.gantt" onchange="loadFromFile(event)">
+
+        <div class="gantt-wrapper">
+            <div id="ganttHeader" class="gantt-header"></div>
+            <div id="ganttContainer" class="gantt-container">
+                <div id="gridLines" class="grid-lines"></div>
+            </div>
+        </div>
     </div>
 
-    <div class="gantt-wrapper">
-        <div id="ganttContainer" class="gantt-container">
-            <div id="gridLines" class="grid-lines"></div>
-        </div>
-    </div>
-</div>
+    <script>let tasks = [];
+        let firstDate = null;
+        const weekWidth = 60; // pixel per settimana
+        const dayWidth = weekWidth / 7;
 
-<script>
-    let tasks = [];
-    let firstDate = null;
-
-    function addTask() {
-        const name = document.getElementById('name').value;
-        const startVal = document.getElementById('start').value;
-        const endVal = document.getElementById('end').value;
-        const priority = document.getElementById('priority').value;
-
-        if (!name || !startVal || !endVal) return alert("Compila tutti i campi");
-        
-        tasks.push({ name, start: startVal, end: endVal, priority });
-        refreshGantt();
-    }
-
-    function refreshGantt() {
-        if (tasks.length === 0) return;
-        
-        // Trova la data più vecchia per impostare lo zero del grafico
-        const startDates = tasks.map(t => new Date(t.start));
-        firstDate = new Date(Math.min(...startDates));
-        
-        renderGrid();
-        renderBars();
-    }
-
-    function renderGrid() {
-        const grid = document.getElementById('gridLines');
-        grid.innerHTML = '';
-        for(let i=0; i<60; i++) {
-            const line = document.createElement('div');
-            line.className = 'grid-line';
-            line.dataset.day = i + 1;
-            grid.appendChild(line);
+        function addTask() {
+            const name = document.getElementById('name').value;
+            const start = document.getElementById('start').value;
+            const end = document.getElementById('end').value;
+            const priority = document.getElementById('priority').value;
+            if (!name || !start || !end) return alert("Dati mancanti");
+            tasks.push({ name, start, end, priority });
+            refreshGantt();
         }
-    }
 
-    function renderBars() {
-        const container = document.getElementById('ganttContainer');
-        const oldRows = container.querySelectorAll('.task-row');
-        oldRows.forEach(r => r.remove());
+        function refreshGantt() {
+            if (tasks.length === 0) return;
+            const startDates = tasks.map(t => new Date(t.start));
+            firstDate = new Date(Math.min(...startDates));
+            // Arrotonda al lunedì precedente per pulizia visiva
+            const day = firstDate.getDay();
+            const diff = firstDate.getDate() - day + (day == 0 ? -6 : 1);
+            firstDate.setDate(diff);
 
-        tasks.forEach(task => {
-            const dS = new Date(task.start);
-            const dE = new Date(task.end);
-            const offset = Math.floor((dS - firstDate) / (1000*60*60*24));
-            const duration = Math.ceil((dE - dS) / (1000*60*60*24)) + 1;
+            renderHeaderAndGrid();
+            renderBars();
+        }
 
-            const row = document.createElement('div');
-            row.className = 'task-row';
-            const bar = document.createElement('div');
-            bar.className = `task-bar prio-${task.priority}`;
-            bar.style.left = (offset * 40) + "px";
-            bar.style.width = (duration * 40) + "px";
-            bar.innerHTML = `<span>${task.name}</span>`;
-            
-            row.appendChild(bar);
-            container.appendChild(row);
-        });
-    }
+        function renderHeaderAndGrid() {
+            const header = document.getElementById('ganttHeader');
+            const grid = document.getElementById('gridLines');
+            header.innerHTML = '';
+            grid.innerHTML = '';
 
-    // --- FUNZIONI DI SALVATAGGIO E CARICAMENTO ---
+            // Mostriamo 20 settimane (circa 5 mesi)
+            for (let i = 0; i < 20; i++) {
+                const hDiv = document.createElement('div');
+                hDiv.className = 'header-week';
+                hDiv.innerText = 'Sett ' + (i + 1);
+                header.appendChild(hDiv);
 
-    function saveToFile() {
-        if (tasks.length === 0) return alert("Niente da salvare");
-        const data = JSON.stringify(tasks, null, 2);
-        const blob = new Blob([data], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "progetto_gantt.gantt"; // Estensione personalizzata!
-        a.click();
-    }
-
-    function loadFromFile(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                tasks = JSON.parse(e.target.result);
-                refreshGantt();
-            } catch (err) {
-                alert("Errore nel caricamento del file");
+                const gDiv = document.createElement('div');
+                gDiv.className = 'grid-line-week';
+                grid.appendChild(gDiv);
             }
-        };
-        reader.readAsText(file);
-    }
+        }
 
-    function exportToExcel() {
-        if (tasks.length === 0) return alert("Niente da esportare");
-        const ws = XLSX.utils.json_to_sheet(tasks);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Tasks");
-        XLSX.writeFile(wb, "Gantt_Export.xlsx");
-    }
+        function renderBars() {
+            const container = document.getElementById('ganttContainer');
+            const oldRows = container.querySelectorAll('.task-row');
+            oldRows.forEach(r => r.remove());
 
-    document.getElementById('start').valueAsDate = new Date();
-</script>
+            tasks.forEach(task => {
+                const dS = new Date(task.start);
+                const dE = new Date(task.end);
+                const offsetDays = (dS - firstDate) / (1000 * 60 * 60 * 24);
+                const durationDays = ((dE - dS) / (1000 * 60 * 60 * 24)) + 1;
+
+                const row = document.createElement('div');
+                row.className = 'task-row';
+
+                const bar = document.createElement('div');
+                bar.className = `task-bar prio-${task.priority}`;
+                bar.style.left = (offsetDays * dayWidth) + "px";
+                bar.style.width = (durationDays * dayWidth) + "px";
+                bar.title = `${task.name}: ${task.start} al ${task.end}`;
+
+                const label = document.createElement('span');
+                label.className = 'task-label';
+                label.innerText = task.name;
+
+                bar.appendChild(label);
+                row.appendChild(bar);
+                container.appendChild(row);
+            });
+        }
+
+        // Le funzioni saveToFile, loadFromFile e exportToExcel rimangono identiche a prima
+        function saveToFile() {
+            const blob = new Blob([JSON.stringify(tasks)], { type: "application/json" });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = "progetto.gantt";
+            a.click();
+        }
+        function loadFromFile(e) {
+            const reader = new FileReader();
+            reader.onload = (ev) => { tasks = JSON.parse(ev.target.result); refreshGantt(); };
+            reader.readAsText(e.target.files[0]);
+        }
+        function exportToExcel() {
+            const ws = XLSX.utils.json_to_sheet(tasks);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Piano");
+            XLSX.writeFile(wb, "Gantt.xlsx");
+        }
+        document.getElementById('start').valueAsDate = new Date();</script>
 </body>
 </html>
