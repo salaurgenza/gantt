@@ -77,11 +77,12 @@
 
         /* Grafico */
         .gantt-wrapper {
-            overflow-x: hidden;
+            overflow-x: auto; /* Permette lo scorrimento orizzontale */
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             background: white;
             position: relative;
+            -webkit-overflow-scrolling: touch; /* Rende lo scroll fluido su mobile */
         }
 
         .gantt-header {
@@ -230,11 +231,29 @@
             header.innerHTML = '';
             grid.innerHTML = '';
 
-            // Mostriamo 20 settimane (circa 5 mesi)
-            for (let i = 0; i < 20; i++) {
+            // Calcoliamo la data dell'attività che finisce più tardi
+            const endDates = tasks.map(t => new Date(t.end));
+            const lastDate = new Date(Math.max(...endDates));
+
+            // Calcoliamo quante settimane servono per coprire tutto il periodo
+            const diffInMs = lastDate - firstDate;
+            const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+            const weeksNeeded = Math.ceil(diffInDays / 7) + 2; // +2 settimane di "margine" alla fine
+
+            // Impostiamo la larghezza totale del contenitore per attivare lo scroll
+            const totalWidth = weeksNeeded * weekWidth;
+            header.style.width = totalWidth + "px";
+            document.getElementById('ganttContainer').style.width = totalWidth + "px";
+
+            for (let i = 0; i < weeksNeeded; i++) {
+                // Calcoliamo il nome del mese/giorno per l'intestazione (opzionale ma utile)
+                const currentWeekDate = new Date(firstDate);
+                currentWeekDate.setDate(firstDate.getDate() + (i * 7));
+                const monthName = currentWeekDate.toLocaleDateString('it-IT', { month: 'short' });
+
                 const hDiv = document.createElement('div');
                 hDiv.className = 'header-week';
-                hDiv.innerText = 'Sett ' + (i + 1);
+                hDiv.innerHTML = `<span style="font-size:8px">${monthName}</span><br>S${i + 1}`;
                 header.appendChild(hDiv);
 
                 const gDiv = document.createElement('div');
