@@ -6,175 +6,66 @@
     <title>Gantt Master - Vista Panoramica</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
-        :root {
-            --week-width: 60px; /* Una settimana intera occupa 60px */
-            --day-px: 8.57px; /* Calcolo automatico: 60 / 7 */
-            --accent: #2563eb;
-            --excel: #107c41;
-            --save: #6366f1;
-        }
+    :root {
+        --accent: #2563eb;
+        --excel: #107c41;
+        --save: #6366f1;
+    }
 
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #f8fafc;
-            padding: 20px;
-            font-size: 14px;
-        }
+    body { font-family: 'Segoe UI', sans-serif; background: #f8fafc; padding: 20px; }
+    .card { background: white; padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 1300px; margin: auto; }
+    
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; align-items: flex-end; }
+    .input-group { display: flex; flex-direction: column; gap: 4px; }
+    input, select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
 
-        .card {
-            background: white;
-            padding: 24px;
-            border-radius: 12px;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-            max-width: 1200px;
-            margin: auto;
-        }
+    #ganttWrapper { overflow-x: auto; background: white; border: 1px solid #e2e8f0; border-radius: 8px; position: relative; }
+    #ganttHeader { display: flex; border-bottom: 1px solid #e2e8f0; background: #f8fafc; position: sticky; top: 0; z-index: 10; }
+    
+    .header-week { 
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        border-right: 1px solid #e2e8f0; height: 50px; flex-shrink: 0; text-align: center;
+    }
 
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-            background: #f1f5f9;
-            padding: 15px;
-            border-radius: 8px;
-            align-items: end;
-        }
+    #ganttContainer { position: relative; min-height: 200px; padding-top: 10px; }
+    .task-row { height: 45px; position: relative; border-bottom: 1px solid #f1f5f9; width: 100%; }
+    
+    .task-bar { 
+        position: absolute; height: 28px; top: 8px; border-radius: 6px; 
+        color: white; font-size: 11px; display: flex; align-items: center; 
+        cursor: grab; z-index: 2; transition: box-shadow 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .task-bar:active { cursor: grabbing; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
 
-        .field {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            font-size: 11px;
-            font-weight: bold;
-        }
+    /* La X di chiusura */
+    .btn-delete {
+        cursor: pointer; padding: 0 8px; font-weight: bold; font-size: 16px;
+        opacity: 0.8; transition: opacity 0.2s;
+    }
+    .btn-delete:hover { opacity: 1; color: #ff0000; }
 
-        input, select, button {
-            padding: 8px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-        }
+    .task-label { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-grow: 1; pointer-events: none; }
 
-        button {
-            cursor: pointer;
-            border: none;
-            font-weight: 600;
-            color: white;
-            transition: 0.2s;
-        }
+    /* Maniglia per allungare */
+    .resizer-right {
+        width: 12px; height: 100%; position: absolute; right: 0; top: 0;
+        cursor: ew-resize; background: rgba(255,255,255,0.1); border-radius: 0 6px 6px 0;
+    }
 
-        .btn-add {
-            background: var(--accent);
-        }
+    #gridLines { position: absolute; top: 0; left: 0; height: 100%; display: flex; pointer-events: none; z-index: 1; }
+    .grid-line-week { border-right: 1px solid #f1f5f9; height: 100%; flex-shrink: 0; }
 
-        .btn-save {
-            background: var(--save);
-        }
+    .prio-Alta { background: #ef4444; }
+    .prio-Media { background: #f59e0b; }
+    .prio-Bassa { background: #10b981; }
 
-        .btn-excel {
-            background: var(--excel);
-        }
-
-        /* Grafico */
-        .gantt-wrapper {
-            overflow-x: auto; /* Permette lo scorrimento orizzontale */
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            background: white;
-            position: relative;
-            -webkit-overflow-scrolling: touch; /* Rende lo scroll fluido su mobile */
-        }
-
-        .gantt-header {
-            display: flex;
-            background: #f8fafc;
-            border-bottom: 2px solid #e2e8f0;
-            height: 30px;
-        }
-
-        .header-week {
-            min-width: var(--week-width);
-            border-right: 1px solid #e2e8f0;
-            font-size: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #64748b;
-        }
-
-            .header-week b {
-                color: #1e293b;
-                font-size: 11px;
-            }
-
-        /* Rendi la maniglia di ridimensionamento un po' più visibile */
-        .resizer-right {
-            background: rgba(255,255,255,0.3) !important;
-            border-left: 1px solid rgba(0,0,0,0.1);
-        }
-
-        .gantt-container {
-            position: relative;
-            min-height: 400px;
-        }
-
-        .grid-lines {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            display: flex;
-            pointer-events: none;
-        }
-
-        .grid-line-week {
-            min-width: var(--week-width);
-            border-right: 1px solid #f1f5f9;
-        }
-
-        .task-row {
-            position: relative;
-            height: 35px;
-            border-bottom: 1px solid #fafafa;
-            display: flex;
-            align-items: center;
-        }
-
-        .task-bar {
-            position: absolute;
-            height: 20px;
-            border-radius: 4px;
-            z-index: 2;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        /* Nome attività FUORI dalla barra per leggibilità */
-        .task-label {
-            position: absolute;
-            left: 100%;
-            margin-left: 10px;
-            white-space: nowrap;
-            font-size: 12px;
-            color: #334155;
-            font-weight: 500;
-        }
-
-        .prio-Alta {
-            background: #ef4444;
-        }
-
-        .prio-Media {
-            background: #f59e0b;
-        }
-
-        .prio-Bassa {
-            background: #10b981;
-        }
-
-        .hidden {
-            display: none;
-        }
-    </style>
+    button { padding: 10px 16px; border: none; border-radius: 6px; color: white; cursor: pointer; font-weight: 600; }
+    .btn-add { background: var(--accent); }
+    .btn-save { background: var(--save); }
+    .btn-excel { background: var(--excel); }
+    .btn-load { background: #64748b; }
+</style>
 </head>
 <body>
 
