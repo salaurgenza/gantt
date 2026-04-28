@@ -102,6 +102,17 @@
             color: #64748b;
         }
 
+            .header-week b {
+                color: #1e293b;
+                font-size: 11px;
+            }
+
+        /* Rendi la maniglia di ridimensionamento un po' più visibile */
+        .resizer-right {
+            background: rgba(255,255,255,0.3) !important;
+            border-left: 1px solid rgba(0,0,0,0.1);
+        }
+
         .gantt-container {
             position: relative;
             min-height: 400px;
@@ -197,10 +208,17 @@
         </div>
     </div>
 
-    <script>let tasks = [];
+    <script>
+
+        let tasks = [];
         let firstDate = null;
-        const weekWidth = 60; // pixel per settimana
-        const dayWidth = weekWidth / 7;
+        const dayWidth = 40;
+
+        // Variabili per gestire il trascinamento
+        let isResizing = false;
+        let isDragging = false;
+        let currentTaskIndex = null;
+        let startX, originalWidth, originalLeft;
 
         function addTask() {
             const name = document.getElementById('name').value;
@@ -212,11 +230,24 @@
             refreshGantt();
         }
 
+        // Nuova funzione per eliminare un'attività
+        function deleteTask(index) {
+            if (confirm("Vuoi eliminare questa attività?")) {
+                tasks.splice(index, 1);
+                refreshGantt();
+            }
+        }
+
         function refreshGantt() {
-            if (tasks.length === 0) return;
+            if (tasks.length === 0) {
+                document.getElementById('ganttHeader').innerHTML = '';
+                document.getElementById('gridLines').innerHTML = '';
+                const container = document.getElementById('ganttContainer');
+                container.querySelectorAll('.task-row').forEach(r => r.remove());
+                return;
+            }
             const startDates = tasks.map(t => new Date(t.start));
             firstDate = new Date(Math.min(...startDates));
-            // Arrotonda al lunedì precedente per pulizia visiva
             const day = firstDate.getDay();
             const diff = firstDate.getDate() - day + (day == 0 ? -6 : 1);
             firstDate.setDate(diff);
@@ -231,47 +262,58 @@
             header.innerHTML = '';
             grid.innerHTML = '';
 
-            // Calcoliamo la data dell'attività che finisce più tardi
             const endDates = tasks.map(t => new Date(t.end));
             const lastDate = new Date(Math.max(...endDates));
 
-            // Calcoliamo quante settimane servono per coprire tutto il periodo
             const diffInMs = lastDate - firstDate;
-            const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
-            const weeksNeeded = Math.ceil(diffInDays / 7) + 2; // +2 settimane di "margine" alla fine
+            const daysNeeded = Math.ceil(diffInMs / (1000 * 60 * 60 * 24)) + 7;
 
-            // Impostiamo la larghezza totale del contenitore per attivare lo scroll
-            const totalWidth = weeksNeeded * weekWidth;
+            const totalWidth = daysNeeded * dayWidth;
             header.style.width = totalWidth + "px";
+            header.style.height = "45px"; // Aumentato spazio per i numeri
             document.getElementById('ganttContainer').style.width = totalWidth + "px";
 
-            for (let i = 0; i < weeksNeeded; i++) {
-                // Calcoliamo il nome del mese/giorno per l'intestazione (opzionale ma utile)
-                const currentWeekDate = new Date(firstDate);
-                currentWeekDate.setDate(firstDate.getDate() + (i * 7));
-                const monthName = currentWeekDate.toLocaleDateString('it-IT', { month: 'short' });
+            for (let i = 0; i < daysNeeded; i++) {
+                const currentDate = new Date(firstDate);
+                currentDate.setDate(firstDate.getDate() + i);
+
+                const dayNumber = currentDate.getDate();
+                const dayName = currentDate.toLocaleDateString('it-IT', { weekday: 'short' }); // Lun, Mar...
+                const isWeekend = currentDate.getDay() === 0 || currentDate.getDay() === 6;
 
                 const hDiv = document.createElement('div');
                 hDiv.className = 'header-week';
-                hDiv.innerHTML = `<span style="font-size:8px">${monthName}</span><br>S${i + 1}`;
+                hDiv.style.minWidth = dayWidth + "px";
+                hDiv.style.flexDirection = "column";
+                hDiv.style.justifyContent = "center";
+                hDiv.style.gap = "2px";
+
+                if (isWeekend) hDiv.style.background = "#f1f5f9";
+
+                // Numeri più grandi e chiari
+                hDiv.innerHTML = `
+            <span style="font-size:9px; color:#64748b; font-weight:normal">${dayName}</span>
+            <b style="font-size:13px; color:#1e293b">${dayNumber}</b>
+        `;
                 header.appendChild(hDiv);
 
                 const gDiv = document.createElement('div');
                 gDiv.className = 'grid-line-week';
+                gDiv.style.minWidth = dayWidth + "px";
+                if (isWeekend) gDiv.style.background = "rgba(241, 245, 249, 0.6)";
                 grid.appendChild(gDiv);
             }
         }
 
         function renderBars() {
             const container = document.getElementById('ganttContainer');
-            const oldRows = container.querySelectorAll('.task-row');
-            oldRows.forEach(r => r.remove());
+            container.querySelectorAll('.task-row').forEach(r => r.remove());
 
-            tasks.forEach(task => {
+            tasks.forEach((task, index) => {
                 const dS = new Date(task.start);
                 const dE = new Date(task.end);
-                const offsetDays = (dS - firstDate) / (1000 * 60 * 60 * 24);
-                const durationDays = ((dE - dS) / (1000 * 60 * 60 * 24)) + 1;
+                const offsetDays = Math.floor((dS - firstDate) / (1000 * 60 * 60 * 24));
+                const durationDays = Math.floor((dE - dS) / (1000 * 60 * 60 * 24)) + 1;
 
                 const row = document.createElement('div');
                 row.className = 'task-row';
@@ -280,37 +322,121 @@
                 bar.className = `task-bar prio-${task.priority}`;
                 bar.style.left = (offsetDays * dayWidth) + "px";
                 bar.style.width = (durationDays * dayWidth) + "px";
-                bar.title = `${task.name}: ${task.start} al ${task.end}`;
+                bar.style.display = 'flex';
+                bar.style.alignItems = 'center';
+                bar.style.cursor = 'move';
+
+                // Tasto X per eliminare
+                const closeBtn = document.createElement('span');
+                closeBtn.innerHTML = '&times;';
+                closeBtn.style.color = 'white';
+                closeBtn.style.fontWeight = 'bold';
+                closeBtn.style.padding = '0 5px';
+                closeBtn.style.cursor = 'pointer';
+                closeBtn.style.fontSize = '14px';
+                closeBtn.title = "Elimina attività";
+                closeBtn.onclick = (e) => {
+                    e.stopPropagation(); // Evita di attivare il drag cliccando la X
+                    deleteTask(index);
+                };
+
+                const resizer = document.createElement('div');
+                resizer.style.width = '10px';
+                resizer.style.height = '100%';
+                resizer.style.position = 'absolute';
+                resizer.style.right = '0';
+                resizer.style.cursor = 'ew-resize';
+                resizer.style.background = 'rgba(255,255,255,0.2)';
+
+                resizer.onmousedown = (e) => {
+                    e.stopPropagation();
+                    isResizing = true;
+                    currentTaskIndex = index;
+                    startX = e.clientX;
+                    originalWidth = parseFloat(bar.style.width);
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', stopInteraction);
+                };
+
+                bar.onmousedown = (e) => {
+                    isDragging = true;
+                    currentTaskIndex = index;
+                    startX = e.clientX;
+                    originalLeft = parseFloat(bar.style.left);
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', stopInteraction);
+                };
 
                 const label = document.createElement('span');
                 label.className = 'task-label';
                 label.innerText = task.name;
 
+                bar.appendChild(closeBtn); // Aggiungiamo la X
+                bar.appendChild(resizer);
                 bar.appendChild(label);
                 row.appendChild(bar);
                 container.appendChild(row);
             });
         }
 
-        // Le funzioni saveToFile, loadFromFile e exportToExcel rimangono identiche a prima
+        function handleMouseMove(e) {
+            if (!isResizing && !isDragging) return;
+            const dx = e.clientX - startX;
+            const task = tasks[currentTaskIndex];
+
+            if (isResizing) {
+                const addedDays = Math.round(dx / dayWidth);
+                const startDate = new Date(task.start);
+                const originalDuration = Math.round((new Date(task.end) - startDate) / (1000 * 60 * 60 * 24));
+                const newDuration = Math.max(0, originalDuration + addedDays);
+                const newEnd = new Date(startDate);
+                newEnd.setDate(startDate.getDate() + newDuration);
+                task.end = newEnd.toISOString().split('T')[0];
+            } else if (isDragging) {
+                const movedDays = Math.round(dx / dayWidth);
+                if (movedDays !== 0) {
+                    const newS = new Date(task.start);
+                    const newE = new Date(task.end);
+                    const duration = (newE - newS);
+                    newS.setDate(newS.getDate() + movedDays);
+                    newE.setTime(newS.getTime() + duration);
+                    task.start = newS.toISOString().split('T')[0];
+                    task.end = newE.toISOString().split('T')[0];
+                    startX = e.clientX;
+                }
+            }
+            refreshGantt();
+        }
+
+        function stopInteraction() {
+            isResizing = false;
+            isDragging = false;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', stopInteraction);
+        }
+
         function saveToFile() {
             const blob = new Blob([JSON.stringify(tasks)], { type: "application/json" });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = "progetto.gantt";
+            a.download = "piano_gantt.gantt";
             a.click();
         }
+
         function loadFromFile(e) {
             const reader = new FileReader();
             reader.onload = (ev) => { tasks = JSON.parse(ev.target.result); refreshGantt(); };
             reader.readAsText(e.target.files[0]);
         }
+
         function exportToExcel() {
             const ws = XLSX.utils.json_to_sheet(tasks);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Piano");
             XLSX.writeFile(wb, "Gantt.xlsx");
         }
-        document.getElementById('start').valueAsDate = new Date();</script>
+
+        document.getElementById('start').valueAsDate = new Date();
+    </script>
 </body>
 </html>
